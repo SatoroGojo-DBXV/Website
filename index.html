@@ -26,11 +26,14 @@
     } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
     const firebaseConfig = {
-      apiKey: "AIzaSyAMjg0YDDgp98jmWAIL_3SWKzNAUQVH2xg",
-      authDomain: "kghg-678bb.firebaseapp.com",
-      projectId: "kghg-678bb",
-      // ...
-    };
+  apiKey: "AIzaSyAMjg0YDDgp98jmWAIL_3SWKzNAUQVH2xg",
+  authDomain: "kghg-678bb.firebaseapp.com",
+  projectId: "kghg-678bb",
+  storageBucket: "kghg-678bb.appspot.com", // 
+  messagingSenderId: "657975035904",
+  appId: "1:657975035904:web:82e961f82efa2cdc8cf0e5",
+  measurementId: "G-9JSZBYGSRB"
+};
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
