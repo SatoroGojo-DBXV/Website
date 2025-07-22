@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Full‑Featured Learning Platform</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase SDKs -->
+  <script type="module">
+    // TODO: replace with your own Firebase config
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import {
+      getAuth,
+      createUserWithEmailAndPassword,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      getDoc,
+      collection,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAMjg0YDDgp98jmWAIL_3SWKzNAUQVH2xg",
+      authDomain: "kghg-678bb.firebaseapp.com",
+      projectId: "kghg-678bb",
+      // ...
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Expose to window
+    window.auth = auth;
+    window.db = db;
+    window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+    window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+    window.signOut = signOut;
+    window.onAuthStateChanged = onAuthStateChanged;
+    window.doc = doc;
+    window.setDoc = setDoc;
+    window.getDoc = getDoc;
+    window.collection = collection;
+    window.getDocs = getDocs;
+  </script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+  <!-- AUTH SCREEN -->
+  <div id="auth" class="min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+      <h2 id="auth-title" class="text-2xl font-bold mb-6">Sign In</h2>
+      <input id="email" type="email" placeholder="Email"
+             class="input w-full mb-4 p-2 border rounded"/>
+      <input id="password" type="password" placeholder="Password"
+             class="input w-full mb-6 p-2 border rounded"/>
+      <button id="auth-btn" class="btn btn-primary w-full mb-4
+             bg-blue-600 text-white py-2 rounded">Sign In</button>
+      <div class="text-center text-sm">
+        <span id="toggle-text">Don't have an account?</span>
+        <a href="#" id="toggle-link" class="text-blue-600">Sign Up</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="app" class="hidden min-h-screen flex flex-col">
+    <!-- NAV -->
+    <nav class="bg-blue-600 text-white">
+      <div class="max-w-6xl mx-auto flex items-center">
+        <div class="flex space-x-4">
+          <button data-tab="dashboard" class="px-4 py-3 nav-btn">Dashboard</button>
+          <button data-tab="lesson"    class="px-4 py-3 nav-btn">Lesson</button>
+          <button data-tab="ai"        class="px-4 py-3 nav-btn">AI Help</button>
+          <button data-tab="feed"      class="px-4 py-3 nav-btn">Feed</button>
+          <button data-tab="leader"    class="px-4 py-3 nav-btn">Leaderboard</button>
+        </div>
+        <button id="signout" class="ml-auto px-4 py-3">Sign Out</button>
+      </div>
+    </nav>
+
+    <main class="flex-grow max-w-6xl mx-auto p-6 space-y-6">
+
+      <!-- Dashboard -->
+      <section id="dashboard" class="tab-content">
+        <h1 class="text-3xl font-bold mb-4">📚 Dashboard</h1>
+        <div class="grid lg:grid-cols-3 gap-6">
+          <!-- XP Card -->
+          <div class="col-span-3 lg:col-span-1 card p-6">
+            <h2 class="text-xl font-semibold">Level 12 · 2,450 XP</h2>
+            <div class="progress h-3 mt-2 rounded bg-gray-200 overflow-hidden">
+              <div class="bg-purple-500 h-full" style="width:74%"></div>
+            </div>
+            <small class="block mt-1 text-gray-500">1,850 / 2,500 XP</small>
+          </div>
+          <!-- Subjects -->
+          <div class="col-span-3 lg:col-span-2 grid md:grid-cols-3 gap-4">
+            <div class="card p-4 text-center">
+              <h3 class="font-semibold">📘 Math</h3>
+              <div class="progress h-2 mt-2 rounded bg-gray-200 overflow-hidden">
+                <div class="bg-blue-500 h-full" style="width:85%"></div>
+              </div>
+              <small class="block mt-1">680 / 800 XP</small>
+            </div>
+            <div class="card p-4 text-center">
+              <h3 class="font-semibold">🔬 Science</h3>
+              <div class="progress h-2 mt-2 rounded bg-gray-200 overflow-hidden">
+                <div class="bg-green-500 h-full" style="width:70%"></div>
+              </div>
+              <small class="block mt-1">420 / 600 XP</small>
+            </div>
+            <div class="card p-4 text-center">
+              <h3 class="font-semibold">📖 English</h3>
+              <div class="progress h-2 mt-2 rounded bg-gray-200 overflow-hidden">
+                <div class="bg-pink-500 h-full" style="width:94%"></div>
+              </div>
+              <small class="block mt-1">750 / 800 XP</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lesson -->
+      <section id="lesson" class="tab-content hidden">
+        <h1 class="text-3xl font-bold mb-4">📚 Lesson: Algebra</h1>
+        <div class="flex space-x-2 mb-4">
+          <button data-sub="theory" class="sub-btn px-4 py-2 bg-gray-200 rounded">Theory</button>
+          <button data-sub="practice" class="sub-btn px-4 py-2 bg-gray-200 rounded">Practice</button>
+          <button data-sub="help" class="sub-btn px-4 py-2 bg-gray-200 rounded">AI Help</button>
+        </div>
+        <div id="theory" class="sub-content">
+          <p>Algebra is the branch of mathematics dealing with symbols…</p>
+        </div>
+        <div id="practice" class="sub-content hidden">
+          <textarea class="w-full h-40 p-2 border rounded" placeholder="Solve x + 3 = 7"></textarea>
+        </div>
+        <div id="help" class="sub-content hidden">
+          <p>Go to the AI Helper tab for step‑by‑step help.</p>
+        </div>
+      </section>
+
+      <!-- AI Helper -->
+      <section id="ai" class="tab-content hidden">
+        <h1 class="text-3xl font-bold mb-4">🧠 AI Helper</h1>
+        <div class="flex space-x-2 mb-4">
+          <input id="ai-q" class="flex-grow p-2 border rounded" placeholder="Ask anything…"/>
+          <button id="ai-btn" class="btn btn-primary">Ask</button>
+        </div>
+        <div id="ai-res" class="card p-4 hidden">
+          <p><strong>Answer:</strong> x = 4</p>
+          <img src="https://via.placeholder.com/400x150" alt="diagram" class="mt-2 rounded"/>
+        </div>
+      </section>
+
+      <!-- Social Feed -->
+      <section id="feed" class="tab-content hidden">
+        <h1 class="text-3xl font-bold mb-4">👥 Social Feed</h1>
+        <div class="space-y-4">
+          <div class="card p-4">
+            <strong>Riya</strong>
+            <p>Just aced my quiz! 🎉</p>
+            <small class="text-gray-500">👍 12  💬 3</small>
+          </div>
+          <div class="card p-4">
+            <strong>Jay</strong>
+            <p>Anyone help me with question 3?</p>
+            <small class="text-gray-500">👍 5  💬 8</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- Leaderboard -->
+      <section id="leader" class="tab-content hidden">
+        <h1 class="text-3xl font-bold mb-4">🏆 Leaderboard</h1>
+        <div class="card p-4">
+          <ol class="list-decimal ml-5 space-y-1">
+            <li>Alex — 3,250 XP</li>
+            <li>You — 2,450 XP</li>
+            <li>Mike — 2,180 XP</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // AUTH
+    const authDiv = document.getElementById('auth'),
+          appDiv  = document.getElementById('app'),
+          btn     = document.getElementById('auth-btn'),
+          toggle  = document.getElementById('toggle-link'),
+          title   = document.getElementById('auth-title'),
+          ttext   = document.getElementById('toggle-text'),
+          signOut = document.getElementById('signout');
+    let isSignIn = true;
+
+    toggle.addEventListener('click', e => {
+      e.preventDefault();
+      isSignIn = !isSignIn;
+      title.textContent = isSignIn ? 'Sign In' : 'Sign Up';
+      btn.textContent   = isSignIn ? 'Sign In' : 'Sign Up';
+      ttext.textContent = isSignIn ? "Don't have an account?" : 'Already have an account?';
+      toggle.textContent= isSignIn ? 'Sign Up' : 'Sign In';
+    });
+
+    btn.addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim(),
+            pass  = document.getElementById('password').value.trim();
+      if (!email || !pass) return alert('Enter both fields');
+
+      try {
+        if (isSignIn) {
+          await signInWithEmailAndPassword(auth, email, pass);
+        } else {
+          await createUserWithEmailAndPassword(auth, email, pass);
+          // create basic user doc
+          await setDoc(doc(db, 'users', auth.currentUser.uid), { email });
+        }
+        authDiv.classList.add('hidden');
+        appDiv.classList.remove('hidden');
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+
+    signOut.addEventListener('click', () => {
+      signOut(auth).then(() => {
+        appDiv.classList.add('hidden');
+        authDiv.classList.remove('hidden');
+      });
+    });
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        authDiv.classList.add('hidden');
+        appDiv.classList.remove('hidden');
+      }
+    });
+
+    // NAV TABS
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(s=>s.classList.add('hidden'));
+        document.getElementById(btn.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    // LESSON SUB‑TABS
+    document.querySelectorAll('.sub-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.sub-btn').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        document.querySelectorAll('.sub-content').forEach(x=>x.classList.add('hidden'));
+        document.getElementById(b.dataset.sub).classList.remove('hidden');
+      });
+    });
+
+    // AI HELPER
+    document.getElementById('ai-btn').addEventListener('click', () => {
+      document.getElementById('ai-res').classList.remove('hidden');
+    });
+  </script>
+</body>
+</html>
