@@ -1,0 +1,34 @@
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
+import assert from 'node:assert/strict';
+import ts from 'typescript';
+import {drizzle} from 'drizzle-orm/d1';
+const dir='.sites-runtime/tests';mkdirSync(dir,{recursive:true});
+for(const [file,out] of [['db/schema.ts','schema'],['lib/validation.ts','validation'],['app/api/workspace/route.ts','workspace']]){
+ let src=readFileSync(file,'utf8').replace("import {getActor} from '../../../lib/owner';","const getActor=async()=>globalThis.testActor;").replace("import {getDb} from '../../../db';","const getDb=()=>globalThis.testDb;").replaceAll("'../../../db/schema'","'./schema.mjs'").replaceAll("'../../../lib/validation'","'./validation.mjs'");
+ writeFileSync(`${dir}/${out}.mjs`,ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);
+}
+const sql=new DatabaseSync(':memory:');for(const f of ['drizzle/0000_dazzling_hiroim.sql','drizzle/0001_slippery_black_crow.sql'])sql.exec(readFileSync(f,'utf8'));
+const client={prepare(query){let args=[];return {bind(...p){args=p;return this},async all(){return {results:sql.prepare(query).all(...args)}},async raw(){const s=sql.prepare(query);s.setReturnArrays(true);return s.all(...args)},async run(){sql.prepare(query).run(...args);return {success:true}}}},async batch(items){sql.exec('BEGIN');try{const result=[];for(const i of items)result.push(await i.all());sql.exec('COMMIT');return result}catch(e){sql.exec('ROLLBACK');throw e}}};
+globalThis.testDb=drizzle(client);
+const api=await import(`../${dir}/workspace.mjs`);const v=await import(`../${dir}/validation.mjs`);
+const actor=(id,owner=false)=>globalThis.testActor={userId:id,isOwner:owner,email:id+'@test.invalid'};
+const post=d=>api.POST(new Request('https://dtb.test/api/workspace',{method:'POST',headers:{origin:'https://dtb.test'},body:JSON.stringify(d)}));
+const reg=(id,role,grade='Class 10',status='Registered')=>sql.prepare('INSERT INTO registrations VALUES (?,?,?,?,?,?)').run(id+':'+role,id,role,JSON.stringify({studentName:id,grade,goal:'School learning',city:'Delhi',locality:'Test locality',phone:'9999999999'}),status,'now');
+reg('a','learner');reg('b','learner');reg('junior','learner','Class 9');reg('t','tutor','', 'Approved');
+globalThis.testActor=null;assert.equal((await api.GET()).status,401);
+actor('a');assert.equal((await post({action:'tutorReview',userId:'t',status:'Approved'})).status,403);assert.equal((await post({action:'message',threadUserId:'b',body:'intrusion'})).status,403);
+assert.equal((await api.POST(new Request('https://dtb.test/api/workspace',{method:'POST',headers:{origin:'https://bad.test'},body:'{}'}))).status,403);
+assert.equal((await post({action:'request',subject:'Mathematics',mode:'Online',availability:'Weekdays',notes:'Need help with algebra'})).status,200);
+let data=await (await api.GET()).json();assert.equal(data.requests.length,1);assert.equal(data.registrations.length,1);const requestId=data.requests[0].id;
+actor('b');data=await (await api.GET()).json();assert.equal(data.requests.length,0);assert.equal(data.registrations[0].userId,'b');
+actor('g',true);assert.equal((await post({action:'assign',requestId,tutorUserId:'t',stage:'Assigned',schedule:'',ownerNote:'Chapter 2'})).status,200);
+actor('t');data=await (await api.GET()).json();assert.equal(data.tutorAssignments.length,1);assert.equal(data.tutorAssignments[0].learner.phone,undefined);
+actor('a');data=await (await api.GET()).json();assert.equal(data.requests[0].assignment.tutorUserId,undefined);
+const claim={action:'achievement',exam:'Final term',subject:'Mathematics',year:2026,score:100,total:100,evidence:'Marksheet available for owner verification'};
+assert.equal((await post({...claim,score:99})).status,400);assert.equal((await post(claim)).status,200);assert.equal((await post(claim)).status,409);
+data=await (await api.GET()).json();const claimId=data.claims[0].id;const review={action:'reviewReward',claimId,decision:'Approved',points:250,ownerNote:'Verified marksheet',verified:true};assert.equal((await post(review)).status,403);
+actor('g',true);assert.equal((await post(review)).status,200);assert.equal((await post(review)).status,409);
+actor('junior');assert.equal((await post(claim)).status,403);
+assert.equal(v.rewardsEligible({grade:'Class 9',goal:'School learning'}),false);assert.equal(v.rewardsEligible({goal:'JEE'}),true);assert.equal(v.isOwnerIdentity('a@test.invalid',undefined),false);
+console.log('Passed: authentication, owner-only actions, cross-user privacy, tutor projection, request assignment, full-mark eligibility and duplicate reward protection.');

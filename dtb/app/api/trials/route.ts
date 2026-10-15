@@ -1,9 +1,4 @@
-import { getChatGPTUser } from '../../chatgpt-auth';
-import { getDb } from '../../../db';
-import { registrations,trialRequests } from '../../../db/schema';
-import { eq,and,desc } from 'drizzle-orm';
-import { trialSchema,sameOrigin } from '../../../lib/validation';
-export const dynamic='force-dynamic';
-const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
-export async function GET(){const user=await getChatGPTUser();if(!user)return reply({error:'Sign in to continue.'},401);try{return reply({requests:await getDb().select().from(trialRequests).where(eq(trialRequests.userId,user.userId)).orderBy(desc(trialRequests.createdAt))})}catch{return reply({error:'Requests could not be loaded.'},503)}}
-export async function POST(request:Request){const user=await getChatGPTUser();if(!user)return reply({error:'Sign in to request a trial.'},401);if(!sameOrigin(request))return reply({error:'Invalid request origin.'},403);let body;try{body=await request.json()}catch{return reply({error:'Invalid request.'},400)}const parsed=trialSchema.safeParse(body);if(!parsed.success)return reply({error:'Please check the trial details.'},400);try{const db=getDb();const profile=await db.select().from(registrations).where(and(eq(registrations.userId,user.userId),eq(registrations.role,'learner')));if(!profile.length)return reply({error:'Complete parent/student registration first.'},409);const existing=await db.select().from(trialRequests).where(and(eq(trialRequests.userId,user.userId),eq(trialRequests.status,'Requested')));if(existing.length>=3)return reply({error:'You already have three pending requests. You can view them in your portal.'},409);const row={id:crypto.randomUUID(),userId:user.userId,...parsed.data,status:'Requested',createdAt:new Date().toISOString()};await db.insert(trialRequests).values(row);return reply({ok:true,request:row});}catch{return reply({error:'Your request was not saved. Please try again.'},503)}}
+// Legacy endpoint: keep all requests subject to the new managed-workspace rules.
+import {POST as workspacePost} from '../workspace/route';
+export {GET} from '../workspace/route';
+export async function POST(request:Request){let body;try{body=await request.json()}catch{return Response.json({error:'Invalid request.'},{status:400})}const headers=new Headers(request.headers);headers.delete('content-length');return workspacePost(new Request(request.url,{method:'POST',headers,body:JSON.stringify({...body as object,action:'request'})}));}
