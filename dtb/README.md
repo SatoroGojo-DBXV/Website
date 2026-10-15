@@ -1,4 +1,4 @@
-# DTB - Diligent Tutors Buero
+# DTB - Diligent Tutors Bureau
 
 Full-stack tutoring website with responsive home page, illustrative tutor directory, parent/student registration, tutor applications, trial requests and a student portal.
 
