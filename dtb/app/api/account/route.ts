@@ -1,0 +1,9 @@
+import { getChatGPTUser } from '../../chatgpt-auth';
+import { getDb } from '../../../db';
+import { registrations } from '../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { registrationSchema, sameOrigin } from '../../../lib/validation';
+export const dynamic = 'force-dynamic';
+const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
+export async function GET(){const user=await getChatGPTUser();if(!user)return reply({error:'Sign in to continue.'},401);try{const rows=await getDb().select().from(registrations).where(eq(registrations.userId,user.userId));return reply({user:{name:user.fullName,email:user.email},registrations:rows.map(r=>({role:r.role,status:r.status,data:JSON.parse(r.payload),updatedAt:r.updatedAt}))});}catch{return reply({error:'Your account could not be loaded. Please try again.'},503)}}
+export async function POST(request:Request){const user=await getChatGPTUser();if(!user)return reply({error:'Sign in to register.'},401);if(!sameOrigin(request))return reply({error:'Invalid request origin.'},403);if(Number(request.headers.get('content-length')||0)>16000)return reply({error:'Form is too large.'},413);let body;try{body=await request.json()}catch{return reply({error:'Invalid form.'},400)}const parsed=registrationSchema.safeParse(body);if(!parsed.success)return reply({error:parsed.error.issues[0].message},400);const data=parsed.data;const status=data.role==='tutor'?'Pending review':'Registered';const values={id:user.userId+':'+data.role,userId:user.userId,role:data.role,payload:JSON.stringify(data),status,updatedAt:new Date().toISOString()};try{await getDb().insert(registrations).values(values).onConflictDoUpdate({target:registrations.id,set:{payload:values.payload,status,updatedAt:values.updatedAt}});return reply({ok:true,status});}catch{return reply({error:'Registration was not saved. Please try again.'},503)}}
