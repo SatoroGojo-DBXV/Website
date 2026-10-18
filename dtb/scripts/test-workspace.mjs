@@ -8,7 +8,7 @@ for(const [file,out] of [['db/schema.ts','schema'],['lib/validation.ts','validat
  let src=readFileSync(file,'utf8').replace("import {getActor} from '../../../lib/owner';","const getActor=async()=>globalThis.testActor;").replace("import {getDb} from '../../../db';","const getDb=()=>globalThis.testDb;").replaceAll("'../../../db/schema'","'./schema.mjs'").replaceAll("'../../../lib/validation'","'./validation.mjs'");
  writeFileSync(`${dir}/${out}.mjs`,ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);
 }
-export const sql=new DatabaseSync(':memory:');for(const f of ['drizzle/0000_dazzling_hiroim.sql','drizzle/0001_slippery_black_crow.sql','drizzle/0002_fuzzy_shadowcat.sql'])sql.exec(readFileSync(f,'utf8'));
+export const sql=new DatabaseSync(':memory:');for(const f of ['drizzle/0000_dazzling_hiroim.sql','drizzle/0001_slippery_black_crow.sql','drizzle/0002_fuzzy_shadowcat.sql','drizzle/0003_flashy_the_fury.sql'])sql.exec(readFileSync(f,'utf8'));
 const client={prepare(query){let args=[];return {bind(...p){args=p;return this},async all(){return {results:sql.prepare(query).all(...args)}},async raw(){const s=sql.prepare(query);s.setReturnArrays(true);return s.all(...args)},async run(){sql.prepare(query).run(...args);return {success:true}}}},async batch(items){sql.exec('BEGIN');try{const result=[];for(const i of items)result.push(await i.all());sql.exec('COMMIT');return result}catch(e){sql.exec('ROLLBACK');throw e}}};
 globalThis.testDb=drizzle(client);
 const api=await import(`../${dir}/workspace.mjs`);const v=await import(`../${dir}/validation.mjs`);

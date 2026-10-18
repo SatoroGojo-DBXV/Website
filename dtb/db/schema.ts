@@ -19,3 +19,4 @@ export const tutorDocuments = sqliteTable('tutor_documents', {
  id:text('id').primaryKey(),userId:text('user_id').notNull(),kind:text('kind').notNull(),fileName:text('file_name').notNull(),mediaType:text('media_type').notNull(),size:text('size').notNull(),objectKey:text('object_key').notNull(),createdAt:text('created_at').notNull()
 });
 export const ownerAttempts=sqliteTable('owner_attempts', {userId:text('user_id').primaryKey(),count:text('count').notNull(),windowStart:text('window_start').notNull()});
+export const ownerEmails=sqliteTable('owner_emails',{email:text('email').primaryKey(),createdBy:text('created_by').notNull(),createdAt:text('created_at').notNull()});
