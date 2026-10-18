@@ -1,7 +1,7 @@
 const encoder=new TextEncoder();
 const hex=(b:ArrayBuffer)=>Array.from(new Uint8Array(b)).map(v=>v.toString(16).padStart(2,'0')).join('');
 export async function safeEqual(a:string,b:string){const [x,y]=await Promise.all([a,b].map(s=>crypto.subtle.digest('SHA-256',encoder.encode(s))));let diff=0;const xx=new Uint8Array(x),yy=new Uint8Array(y);for(let i=0;i<xx.length;i++)diff|=xx[i]^yy[i];return diff===0;}
-export function gateConfigured(key?:string,code?:string){return !!key&&/^[a-zA-Z0-9_-]{12,100}$/.test(key)&&!!code&&code.length>=12;}
+export function gateConfigured(code?:string,sessionSecret?:string){return !!code&&code.length<=200&&!!sessionSecret&&sessionSecret.length>=32;}
 async function signature(value:string,secret:string){const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return hex(await crypto.subtle.sign('HMAC',key,encoder.encode(value)));}
 export async function issueOwnerSession(userId:string,pathKey:string,code:string,now=Date.now()){const expires=now+30*60*1000;const value=`${userId}:${pathKey}:${expires}`;return `${expires}.${await signature(value,code)}`;}
 export async function verifyOwnerSession(token:string,userId:string,pathKey:string,code:string,now=Date.now()){const [expiry,sig,...rest]=token.split('.');const n=Number(expiry);if(rest.length||!Number.isSafeInteger(n)||n<=now||n>now+30*60*1000||!sig||!/^[a-f0-9]{64}$/.test(sig))return false;return safeEqual(sig,await signature(`${userId}:${pathKey}:${expiry}`,code));}
