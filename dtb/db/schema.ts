@@ -15,3 +15,7 @@ export const rewardMembers = sqliteTable('reward_members', {
 export const rewardClaims = sqliteTable('reward_claims', {
  id: text('id').primaryKey(), userId: text('user_id').notNull(), kind: text('kind').notNull(), details: text('details').notNull(), status: text('status').notNull(), points: text('points').notNull(), ownerNote: text('owner_note').notNull(), createdAt: text('created_at').notNull(), reviewedAt: text('reviewed_at')
 });
+export const tutorDocuments = sqliteTable('tutor_documents', {
+ id:text('id').primaryKey(),userId:text('user_id').notNull(),kind:text('kind').notNull(),fileName:text('file_name').notNull(),mediaType:text('media_type').notNull(),size:text('size').notNull(),objectKey:text('object_key').notNull(),createdAt:text('created_at').notNull()
+});
+export const ownerAttempts=sqliteTable('owner_attempts', {userId:text('user_id').primaryKey(),count:text('count').notNull(),windowStart:text('window_start').notNull()});

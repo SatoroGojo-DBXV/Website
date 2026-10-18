@@ -1,12 +1,13 @@
 import {getActor} from '../../../lib/owner';
 import {getDb} from '../../../db';
-import {registrations,rewardMembers,rewardClaims} from '../../../db/schema';
+import {registrations,rewardMembers,rewardClaims,tutorDocuments} from '../../../db/schema';
 import {eq,and} from 'drizzle-orm';
 import {registrationSchema,sameOrigin,rewardsEligible} from '../../../lib/validation';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 export async function GET(){const actor=await getActor();if(!actor)return reply({error:'Sign in to continue.'},401);try{const rows=await getDb().select().from(registrations).where(eq(registrations.userId,actor.userId));return reply({user:{name:actor.fullName,email:actor.email},isOwner:actor.isOwner,registrations:rows.map(r=>({...r,data:JSON.parse(r.payload),payload:undefined}))});}catch{return reply({error:'Your account could not be loaded. Please try again.'},503)}}
 export async function POST(request:Request){const actor=await getActor();if(!actor)return reply({error:'Sign in to register.'},401);if(!sameOrigin(request))return reply({error:'Invalid request origin.'},403);const raw=await request.text();if(raw.length>16000)return reply({error:'Form is too large.'},413);let body;try{body=JSON.parse(raw)}catch{return reply({error:'Invalid form.'},400)}const parsed=registrationSchema.safeParse(body);if(!parsed.success)return reply({error:parsed.error.issues[0].message},400);const data=parsed.data,now=new Date().toISOString(),db=getDb();try{
+ if(data.role==='tutor'){const docs=await db.select().from(tutorDocuments).where(eq(tutorDocuments.userId,actor.userId));if(!['identity','qualification'].every(k=>docs.some(d=>d.kind===k)))return reply({error:'Upload identity proof and qualification proof before submitting your tutor application.'},400);}
  const previous=await db.select().from(registrations).where(eq(registrations.id,actor.userId+':'+data.role));
  const member=(await db.select().from(rewardMembers).where(eq(rewardMembers.userId,actor.userId)))[0];
  let referrer:string|null=null;

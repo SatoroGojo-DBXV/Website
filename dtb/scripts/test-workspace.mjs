@@ -8,7 +8,7 @@ for(const [file,out] of [['db/schema.ts','schema'],['lib/validation.ts','validat
  let src=readFileSync(file,'utf8').replace("import {getActor} from '../../../lib/owner';","const getActor=async()=>globalThis.testActor;").replace("import {getDb} from '../../../db';","const getDb=()=>globalThis.testDb;").replaceAll("'../../../db/schema'","'./schema.mjs'").replaceAll("'../../../lib/validation'","'./validation.mjs'");
  writeFileSync(`${dir}/${out}.mjs`,ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);
 }
-const sql=new DatabaseSync(':memory:');for(const f of ['drizzle/0000_dazzling_hiroim.sql','drizzle/0001_slippery_black_crow.sql'])sql.exec(readFileSync(f,'utf8'));
+export const sql=new DatabaseSync(':memory:');for(const f of ['drizzle/0000_dazzling_hiroim.sql','drizzle/0001_slippery_black_crow.sql','drizzle/0002_fuzzy_shadowcat.sql'])sql.exec(readFileSync(f,'utf8'));
 const client={prepare(query){let args=[];return {bind(...p){args=p;return this},async all(){return {results:sql.prepare(query).all(...args)}},async raw(){const s=sql.prepare(query);s.setReturnArrays(true);return s.all(...args)},async run(){sql.prepare(query).run(...args);return {success:true}}}},async batch(items){sql.exec('BEGIN');try{const result=[];for(const i of items)result.push(await i.all());sql.exec('COMMIT');return result}catch(e){sql.exec('ROLLBACK');throw e}}};
 globalThis.testDb=drizzle(client);
 const api=await import(`../${dir}/workspace.mjs`);const v=await import(`../${dir}/validation.mjs`);
@@ -22,7 +22,10 @@ assert.equal((await api.POST(new Request('https://dtb.test/api/workspace',{metho
 assert.equal((await post({action:'request',subject:'Mathematics',mode:'Online',availability:'Weekdays',notes:'Need help with algebra'})).status,200);
 let data=await (await api.GET()).json();assert.equal(data.requests.length,1);assert.equal(data.registrations.length,1);const requestId=data.requests[0].id;
 actor('b');data=await (await api.GET()).json();assert.equal(data.requests.length,0);assert.equal(data.registrations[0].userId,'b');
-actor('g',true);assert.equal((await post({action:'assign',requestId,tutorUserId:'t',stage:'Assigned',schedule:'',ownerNote:'Chapter 2'})).status,200);
+actor('g',true);assert.equal((await post({action:'tutorReview',userId:'t',status:'Approved',documentsVerified:true})).status,400);
+for(const kind of ['identity','qualification'])sql.prepare('INSERT INTO tutor_documents VALUES (?,?,?,?,?,?,?,?)').run('t:'+kind,'t',kind,kind+'.pdf','application/pdf','5','test/'+kind,'now');
+assert.equal((await post({action:'tutorReview',userId:'t',status:'Approved'})).status,400);assert.equal((await post({action:'tutorReview',userId:'t',status:'Approved',documentsVerified:true})).status,200);
+assert.equal((await post({action:'assign',requestId,tutorUserId:'t',stage:'Assigned',schedule:'',ownerNote:'Chapter 2'})).status,200);
 actor('t');data=await (await api.GET()).json();assert.equal(data.tutorAssignments.length,1);assert.equal(data.tutorAssignments[0].learner.phone,undefined);
 actor('a');data=await (await api.GET()).json();assert.equal(data.requests[0].assignment.tutorUserId,undefined);
 const claim={action:'achievement',exam:'Final term',subject:'Mathematics',year:2026,score:100,total:100,evidence:'Marksheet available for owner verification'};

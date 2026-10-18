@@ -15,7 +15,7 @@ export const workspaceSchema=z.discriminatedUnion('action',[
  z.object({action:z.literal('request'),...requestSchema.shape}),
  z.object({action:z.literal('message'),threadUserId:z.string().min(1).max(200),body:z.string().trim().min(1).max(3000)}),
  z.object({action:z.literal('assign'),requestId:z.string().min(1).max(200),tutorUserId:z.string().max(200),stage:z.enum(['Under review','Assigned','Scheduled','Completed','Closed']),ownerNote:z.string().trim().max(1000),schedule:z.string().trim().max(200)}),
- z.object({action:z.literal('tutorReview'),userId:z.string().min(1).max(200),status:z.enum(['Approved','Pending review','Declined'])}),
+ z.object({action:z.literal('tutorReview'),userId:z.string().min(1).max(200),status:z.enum(['Approved','Pending review','Declined']),documentsVerified:z.boolean().optional()}),
  z.object({action:z.literal('achievement'),exam:z.string().trim().min(2).max(100),subject:z.enum(subjects),year:z.coerce.number().int().min(2020).max(2100),score:z.coerce.number().positive().max(10000),total:z.coerce.number().positive().max(10000),evidence:z.string().trim().min(15).max(1500)}),
  z.object({action:z.literal('reviewReward'),claimId:z.string().min(1).max(200),decision:z.enum(['Approved','Declined']),points:z.coerce.number().int().min(0).max(10000),ownerNote:z.string().trim().min(3).max(1000),verified:z.literal(true)})
 ]);

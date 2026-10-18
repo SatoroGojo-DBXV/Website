@@ -1,16 +1,18 @@
 import {getActor} from '../../../lib/owner';
 import {getDb} from '../../../db';
-import {registrations,trialRequests,assignments,inbox,rewardMembers,rewardClaims} from '../../../db/schema';
+import {registrations,trialRequests,assignments,inbox,rewardMembers,rewardClaims,tutorDocuments} from '../../../db/schema';
 import {and,eq,desc,inArray} from 'drizzle-orm';
 import {workspaceSchema,sameOrigin,rewardsEligible,cities} from '../../../lib/validation';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
-export async function GET(){const a=await getActor();if(!a)return reply({error:'Please sign in.'},401);const db=getDb();try{
+export async function GET(){return workspaceGET(await getActor())}
+export async function workspaceGET(a:Awaited<ReturnType<typeof getActor>>){if(!a)return reply({error:'Please sign in.'},401);const db=getDb();try{
  const regs=await db.select().from(registrations).where(a.isOwner?undefined:eq(registrations.userId,a.userId));
  const parsed=regs.map(r=>({...r,payload:undefined,data:JSON.parse(r.payload)}));
  let requests=await db.select().from(trialRequests).where(a.isOwner?undefined:eq(trialRequests.userId,a.userId)).orderBy(desc(trialRequests.createdAt));
  const ownAssignments=await db.select().from(assignments).where(a.isOwner?undefined:eq(assignments.tutorUserId,a.userId));
- const approved=regs.some(r=>r.role==='tutor'&&r.status==='Approved');
+ const docs=await db.select({id:tutorDocuments.id,userId:tutorDocuments.userId,kind:tutorDocuments.kind,fileName:tutorDocuments.fileName}).from(tutorDocuments).where(a.isOwner?undefined:eq(tutorDocuments.userId,a.userId));
+ const approved=docs.some(d=>d.kind==='identity')&&docs.some(d=>d.kind==='qualification')&&regs.some(r=>r.role==='tutor'&&r.status==='Approved');
  const tutorAssignments=[];
  if(!a.isOwner&&approved)for(const assignment of ownAssignments){
   const r=(await db.select().from(trialRequests).where(eq(trialRequests.id,assignment.requestId)))[0];if(!r)continue;
@@ -23,9 +25,10 @@ export async function GET(){const a=await getActor();if(!a)return reply({error:'
  const claims=await db.select().from(rewardClaims).where(a.isOwner?undefined:eq(rewardClaims.userId,a.userId)).orderBy(desc(rewardClaims.createdAt));
  const safeClaims=claims.map(c=>{const d=JSON.parse(c.details);if(!a.isOwner&&c.kind==='Referral')delete d.referredUserId;return {...c,details:d}});
  const member=(await db.select().from(rewardMembers).where(eq(rewardMembers.userId,a.userId)))[0];
- return reply({isOwner:a.isOwner,userId:a.userId,registrations:parsed,requests:safeRequests,tutorAssignments,messages,claims:safeClaims,referralCode:member?.code||null});
+ return reply({isOwner:a.isOwner,userId:a.userId,registrations:parsed,documents:docs,requests:safeRequests,tutorAssignments,messages,claims:safeClaims,referralCode:member?.code||null});
  }catch{return reply({error:'Your workspace could not be loaded. Please retry.'},503)}}
-export async function POST(request:Request){const a=await getActor();if(!a)return reply({error:'Please sign in.'},401);if(!sameOrigin(request))return reply({error:'Invalid request origin.'},403);const raw=await request.text();if(raw.length>16000)return reply({error:'Request is too large.'},413);let body;try{body=JSON.parse(raw)}catch{return reply({error:'Invalid request.'},400)}const p=workspaceSchema.safeParse(body);if(!p.success)return reply({error:p.error.issues[0].message},400);const d=p.data;const db=getDb(),now=new Date().toISOString();try{
+export async function POST(request:Request){return workspacePOST(request,await getActor())}
+export async function workspacePOST(request:Request,a:Awaited<ReturnType<typeof getActor>>){if(!a)return reply({error:'Please sign in.'},401);if(!sameOrigin(request))return reply({error:'Invalid request origin.'},403);const raw=await request.text();if(raw.length>16000)return reply({error:'Request is too large.'},413);let body;try{body=JSON.parse(raw)}catch{return reply({error:'Invalid request.'},400)}const p=workspaceSchema.safeParse(body);if(!p.success)return reply({error:p.error.issues[0].message},400);const d=p.data;const db=getDb(),now=new Date().toISOString();try{
  if(['assign','tutorReview','reviewReward'].includes(d.action)&&!a.isOwner)return reply({error:'Only G can perform this action.'},403);
  if(d.action==='request'){
   const profile=(await db.select().from(registrations).where(eq(registrations.id,a.userId+':learner')))[0];if(!profile)return reply({error:'Complete parent/student registration first.'},409);const data=JSON.parse(profile.payload);if(!cities.includes(data.city))return reply({error:'Update your profile to a supported Delhi NCR city before sending a request.'},400);
@@ -37,13 +40,13 @@ export async function POST(request:Request){const a=await getActor();if(!a)retur
   const target=await db.select().from(registrations).where(eq(registrations.userId,d.threadUserId));if(!target.length)return reply({error:'Complete registration before messaging.'},409);
   await db.insert(inbox).values({id:crypto.randomUUID(),threadUserId:d.threadUserId,fromOwner:a.isOwner?'yes':'no',body:d.body,createdAt:now});return reply({ok:true});
  }
- if(d.action==='tutorReview'){const target=(await db.select().from(registrations).where(eq(registrations.id,d.userId+':tutor')))[0];if(!target)return reply({error:'Tutor application not found.'},404);await db.update(registrations).set({status:d.status,updatedAt:now}).where(eq(registrations.id,target.id));return reply({ok:true});}
+ if(d.action==='tutorReview'){const target=(await db.select().from(registrations).where(eq(registrations.id,d.userId+':tutor')))[0];if(!target)return reply({error:'Tutor application not found.'},404);if(d.status==='Approved'){const docs=await db.select().from(tutorDocuments).where(eq(tutorDocuments.userId,d.userId));if(!d.documentsVerified||!['identity','qualification'].every(k=>docs.some(x=>x.kind===k)))return reply({error:'Review both identity and qualification documents and confirm their validity before approving.'},400);}await db.update(registrations).set({status:d.status,updatedAt:now}).where(eq(registrations.id,target.id));return reply({ok:true});}
  if(d.action==='assign'){
   const r=(await db.select().from(trialRequests).where(eq(trialRequests.id,d.requestId)))[0];if(!r)return reply({error:'Request not found.'},404);
   if(['Assigned','Scheduled','Completed'].includes(d.stage)&&!d.tutorUserId)return reply({error:'Select yourself or an approved tutor.'},400);
   if(d.stage==='Scheduled'&&!d.schedule)return reply({error:'Add a confirmed schedule for a scheduled request.'},400);
   const tutorId=d.tutorUserId==='owner'?a.userId:d.tutorUserId;
-  if(tutorId&&tutorId!==a.userId){const t=(await db.select().from(registrations).where(eq(registrations.id,tutorId+':tutor')))[0];if(t?.status!=='Approved')return reply({error:'The selected tutor must be approved first.'},400);}
+  if(tutorId&&tutorId!==a.userId){const t=(await db.select().from(registrations).where(eq(registrations.id,tutorId+':tutor')))[0];const docs=await db.select().from(tutorDocuments).where(eq(tutorDocuments.userId,tutorId));if(t?.status!=='Approved'||!['identity','qualification'].every(k=>docs.some(x=>x.kind===k)))return reply({error:'The selected tutor must be approved first.'},400);}
   const row={requestId:r.id,tutorUserId:tutorId,stage:d.stage,ownerNote:d.ownerNote,schedule:d.schedule,updatedAt:now};
   await db.batch([db.insert(assignments).values(row).onConflictDoUpdate({target:assignments.requestId,set:row}),db.update(trialRequests).set({status:d.stage}).where(eq(trialRequests.id,r.id))]);return reply({ok:true});
  }
